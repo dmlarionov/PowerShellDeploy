@@ -13,7 +13,7 @@ Import-Module -Name $PSScriptRoot/helpers
 #
 # Basic setup
 #
-$name = "service-name"  # substitute the product name
+$name = "xxx"  # substitute the product name
 $prod = [String]::IsNullOrEmpty($nonProdEnvName)
 $srcLocalPath = "./src/$name"
 $binLocalPath = "./artifacts/$name"
@@ -101,8 +101,15 @@ $keyfile = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64St
 $s = New-PSSession -HostName $deployHostname -UserName $login -KeyFilePath $keyfile
 
 #
+# Define utility functions in the remote session
+#
+Write-Debug "Exporting functions"
+Export-FunctionRemote -Session $s -FuncName "Get-CredentialFromBase64"
+
+#
 # Check runtime
 #
+Write-Debug "Checking the dotnet runtime."
 Invoke-Command -Session $s -ArgumentList $dotnetRuntime -ScriptBlock ([ScriptBlock]::Create(${function:Confirm-DotnetRuntimeWindows}))
 
 #
