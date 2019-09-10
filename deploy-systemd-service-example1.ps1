@@ -13,7 +13,7 @@ Import-Module -Name $PSScriptRoot/helpers
 #
 # Basic setup
 #
-$name = "service-name"  # substitute the product name
+$name = "xxx"  # substitute the product name
 $prod = [String]::IsNullOrEmpty($nonProdEnvName)
 $srcLocalPath = "./src/$name"
 $binLocalPath = "./artifacts/$name"
@@ -24,6 +24,7 @@ $targetFolder = if ($prod) { "/usr/local/$name" } else { "/usr/local/$name-$nonP
 $targetTempPath = "/tmp"
 $targetService = if ($prod) { "$name" } else { "$name-$nonProdEnvName" }
 $targetUser = $targetService
+$targetGroup = $targetUser
 $targetServiceBinPath = "/usr/bin/dotnet $targetFolder/$name.dll"
 $targetServiceDescription = if ($prod) { "Bla-Bla Service" } else { "Bla-Bla Service (non-production instance)" }  # substitute proper description
 $deployHostname = $Env:DEPLOY_HOSTNAME
@@ -156,6 +157,7 @@ Invoke-Command `
     -Session $s `
     -ArgumentList `
         $targetUser, `
+        $targetGroup, `
         $targetService, `
         $targetServiceBinPath, `
         $targetFolder, `
