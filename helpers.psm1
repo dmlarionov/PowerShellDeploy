@@ -555,9 +555,10 @@ Start a systemd service instance and make sure it is started.
         }
 
         # check for running executable
-        If (@( Get-Process | Where-Object { $_.Path -eq $ServiceBinPath } ).Count -lt 1) {
-            throw "The service executable ($ServiceBinPath) is not running!"
-        }
+        # FIXME: doesn't work for dlls started with dotnet command
+        # If (@( Get-Process | Where-Object { $_.Path -eq $ServiceBinPath } ).Count -lt 1) {
+        #     throw "The service executable ($ServiceBinPath) is not running!"
+        # }
     }
     catch {
         #Invoke-SudoExpression "journalctl -u ${ServiceName} -S '${date}'"
@@ -597,9 +598,10 @@ Stop a systemd service instance and make sure the service it is stopped.
             # TODO: check and throw "Attempt to stop was unsuccessful!"
 
             # check for running executable
-            If (( Get-Process | Where-Object { $_.Path -eq $ServiceBinPath } ).Count -gt 0) {
-                throw "The service executable ($ServiceBinPath) is still running!"
-            }
+            # FIXME: doesn't work for dlls started with dotnet command
+            # If (( Get-Process | Where-Object { $_.Path -eq $ServiceBinPath } ).Count -gt 0) {
+            #     throw "The service executable ($ServiceBinPath) is still running!"
+            # }
         }
         catch {
             #Invoke-SudoExpression "journalctl -u ${ServiceName} -S '${date}'"
