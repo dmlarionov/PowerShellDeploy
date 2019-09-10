@@ -516,7 +516,7 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=$targetFolder
 ExecStart=$targetServiceBinPath
-ExecStop=/usr/bin/pkill -u $targetUser --signal QUIT
+ExecStop=/usr/bin/kill -s INT $MAINPID
 User=$targetUser
 
 [Install]
