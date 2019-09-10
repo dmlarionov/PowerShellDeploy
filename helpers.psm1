@@ -22,30 +22,30 @@ Exports function to the remote session
     Invoke-Command -Session $Session -ScriptBlock ([ScriptBlock]::Create($funcDef))
 }
 
-function Merge-Objects ($target, $source) {
+function Merge-Objects ($Target, $Source) {
 <#
 .SYNOPSIS
 Update a target object with properties from the source object. Designed to be used with JSON transformations.
 #>
-    $source.psobject.Properties | ForEach-Object {
-        If ($_.TypeNameOfValue -eq 'System.Management.Automation.PSCustomObject' -and $target."$($_.Name)" ) {
-            Merge-Objects $target."$($_.Name)" $_.Value
+    $Source.psobject.Properties | ForEach-Object {
+        If ($_.TypeNameOfValue -eq 'System.Management.Automation.PSCustomObject' -and $Target."$($_.Name)" ) {
+            Merge-Objects $Target."$($_.Name)" $_.Value
         }
         Else {
-            $target | Add-Member -MemberType $_.MemberType -Name $_.Name -Value $_.Value -Force
+            $Target | Add-Member -MemberType $_.MemberType -Name $_.Name -Value $_.Value -Force
         }
     }
 }
 
-function Update-KnownHosts ([Parameter(Mandatory)][String] $hostname) {
+function Update-KnownHosts ([Parameter(Mandatory)][String] $Hostname) {
 <#
 .SYNOPSIS
 Update user's known_hosts file for SSH (add keys for provided hostname).
 #>
-    Write-Debug "Fetching keys for $hostname"
+    Write-Debug "Fetching keys for $Hostname"
     # somewhy hash can be unstable, so we don't use -H parameter
-    #$fetchedKeys = Invoke-Expression "ssh-keyscan -T 3 -H $hostname"
-    $fetchedKeys = Invoke-Expression "ssh-keyscan -T 3 $hostname"    # TODO: hide STDERR output from appearing in log
+    #$fetchedKeys = Invoke-Expression "ssh-keyscan -T 3 -H $Hostname"
+    $fetchedKeys = Invoke-Expression "ssh-keyscan -T 3 $Hostname"    # TODO: hide STDERR output from appearing in log
     $userKnownHostsFile = ((Invoke-Expression "ssh -G localhost | select-string '^userknownhostsfile'") -split ' ')[1]
     $knownHosts = Get-Content $userKnownHostsFile
     ForEach ($fetchedKeyItem in $fetchedKeys) {
@@ -67,20 +67,20 @@ Return PSCredential object for base64-encoded login and password.
     param (
         [Parameter(Mandatory=$true)]
         [String]
-        $loginBase64,
+        $LoginBase64,
 
         [Parameter(Mandatory=$true)]
         [String]
-        $unsecurePassworBase64
+        $UnsecurePassBase64
     )
 
     # check if vars were passed
-    if ($null -eq $loginBase64) { throw "Login is null." }
-    if ($null -eq $unsecurePassworBase64) { throw "Password is null." }
+    if ($null -eq $LoginBase64) { throw "Login is null." }
+    if ($null -eq $UnsecurePassBase64) { throw "Password is null." }
 
     # decode login and password (it has to be encoded in Jenkins pipeline for circumvention of credential masking)
-    $login = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($loginBase64)).Trim()
-    $unsecurePassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($unsecurePassworBase64)).Trim()
+    $login = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($LoginBase64)).Trim()
+    $unsecurePassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($UnsecurePassBase64)).Trim()
 
     # convert plain text to secure password
     $password = ConvertTo-SecureString $unsecurePassword -AsPlainText -Force
@@ -96,29 +96,29 @@ Check if existing .Net Core shared framework can satisfy your requirements on Wi
     param (
         [Parameter(Mandatory=$true)]
         [String]
-        $requiredVersion,
+        $Version,
 
         [String]
-        $frameworkName = "Microsoft.NETCore.App"
+        $FrameworkName = "Microsoft.NETCore.App"
     )
 
     # find existing runtimes
     try {
-        $existingRuntimes = (Get-ChildItem (Get-Command dotnet -ErrorAction SilentlyContinue).Path.Replace('dotnet.exe', "shared\$frameworkName")).Name
+        $existingRuntimes = (Get-ChildItem (Get-Command dotnet -ErrorAction SilentlyContinue).Path.Replace('dotnet.exe', "shared\$FrameworkName")).Name
     }
     catch {
-        throw "No .Net Core runtime found at the target machine! Get version '$requiredVersion' from https://dotnet.microsoft.com/download"
+        throw "No .Net Core runtime found at the target machine! Get version '$Version' from https://dotnet.microsoft.com/download"
     }
     
     # check if it satisfies version requirement
-    If ($requiredVersion.Split('.').Length -eq 2) {  # version format x.y
-        If (($existingRuntimes -replace "(\d+)\.(\d+)\.(\d+)", '$1.$2') -NotContains $requiredVersion) {
-            throw "The required .Net Core runtime version '$requiredVersion' is not found at the target machine! Get it from https://dotnet.microsoft.com/download"
+    If ($Version.Split('.').Length -eq 2) {  # version format x.y
+        If (($existingRuntimes -replace "(\d+)\.(\d+)\.(\d+)", '$1.$2') -NotContains $Version) {
+            throw "The required .Net Core runtime version '$Version' is not found at the target machine! Get it from https://dotnet.microsoft.com/download"
         }
     }
-    Else {                                          # version format x.y.z or x.y.z-previewV-mmmmm-nn / other
-        If ($existingRuntimes -NotContains $requiredVersion) {
-            throw "The required .Net Core runtime version '$requiredVersion' is not found at the target machine! Get it from https://dotnet.microsoft.com/download"
+    Else {  # version format x.y.z or x.y.z-previewV-mmmmm-nn / other
+        If ($existingRuntimes -NotContains $Version) {
+            throw "The required .Net Core runtime version '$Version' is not found at the target machine! Get it from https://dotnet.microsoft.com/download"
         }
     }
 }
@@ -131,29 +131,29 @@ Check if existing .Net Core shared framework can satisfy your requirements on Li
     param (
         [Parameter(Mandatory=$true)]
         [String]
-        $requiredVersion,
+        $Version,
 
         [String]
-        $frameworkName = "Microsoft.NETCore.App"
+        $FrameworkName = "Microsoft.NETCore.App"
     )
 
     # find existing runtimes
     try {
-        $existingRuntimes = (Get-ChildItem "/usr/share/dotnet/shared/$frameworkName").Name
+        $existingRuntimes = (Get-ChildItem "/usr/share/dotnet/shared/$FrameworkName").Name
     }
     catch {
-        throw "No .Net Core runtime found at the target machine! Get version '$requiredVersion' from https://dotnet.microsoft.com/download"
+        throw "No .Net Core runtime found at the target machine! Get version '$Version' from https://dotnet.microsoft.com/download"
     }
     
     # check if it satisfies version requirement
-    If ($requiredVersion.Split('.').Length -eq 2) {  # version format x.y
-        If (($existingRuntimes -replace "(\d+)\.(\d+)\.(\d+)", '$1.$2') -NotContains $requiredVersion) {
-            throw "The required .Net Core runtime version '$requiredVersion' is not found at the target machine! Get it from https://dotnet.microsoft.com/download"
+    If ($Version.Split('.').Length -eq 2) {  # version format x.y
+        If (($existingRuntimes -replace "(\d+)\.(\d+)\.(\d+)", '$1.$2') -NotContains $Version) {
+            throw "The required .Net Core runtime version '$Version' is not found at the target machine! Get it from https://dotnet.microsoft.com/download"
         }
     }
-    Else {                                          # version format x.y.z or x.y.z-previewV-mmmmm-nn / other
-        If ($existingRuntimes -NotContains $requiredVersion) {
-            throw "The required .Net Core runtime version '$requiredVersion' is not found at the target machine! Get it from https://dotnet.microsoft.com/download"
+    Else {  # version format x.y.z or x.y.z-previewV-mmmmm-nn / other
+        If ($existingRuntimes -NotContains $Version) {
+            throw "The required .Net Core runtime version '$Version' is not found at the target machine! Get it from https://dotnet.microsoft.com/download"
         }
     }
 }
@@ -166,28 +166,28 @@ Grant permission for an account to log on as a service on Windows.
     param (
         [Parameter(Mandatory=$true)]
         [String]
-        $login
+        $Login
     )
 
     # check parameters
-    if([String]::IsNullOrEmpty($login)) {
+    if([String]::IsNullOrEmpty($Login)) {
         throw "No account is specified for granting log on as a service permission!"
     }
     
     # find sid
     $sid = $null
     try {
-        $principal = new-object System.Security.Principal.NTAccount($login)
+        $principal = new-object System.Security.Principal.NTAccount($Login)
         $sid = $principal.Translate([System.Security.Principal.SecurityIdentifier]).Value.ToString()
     } catch {
         $sid = $null
     }
 
     if([String]::IsNullOrEmpty($sid)) {
-        throw "Account '$login' is not found!"
+        throw "Account '$Login' is not found!"
     }
 
-    Write-Debug "Checking the permission 'SeServiceLogonRight' for account '$login'."
+    Write-Debug "Checking the permission 'SeServiceLogonRight' for account '$Login'."
 
     # get local security policy
     $policyFile = [System.IO.Path]::GetTempFileName()
@@ -204,8 +204,8 @@ Grant permission for an account to log on as a service on Windows.
     }
 
     # if sid or login (wihtout domain part) is not currently allowed
-    If($allowedSids -NotContains $sid -and $allowedSids -NotContains ($login -replace "(\S*)\\(\S*)", '$2')) {
-        Write-Debug "Granting the permission 'SeServiceLogonRight' for account '$login'."
+    If($allowedSids -NotContains $sid -and $allowedSids -NotContains ($Login -replace "(\S*)\\(\S*)", '$2')) {
+        Write-Debug "Granting the permission 'SeServiceLogonRight' for account '$Login'."
         
         # get SIDs to allow (current + new)
         $sids = $allowedSids + @("*$sid")   # record format use asterisk before SID
@@ -233,18 +233,18 @@ Add urlacl for http.sys
     param (
         [Parameter(Mandatory=$true)]
         [String]
-        $login,
+        $Login,
 
         [Parameter(Mandatory=$true)]
         [String] 
-        $url
+        $Url
     )
 
     # pattern to match
     [regex] $pattern="^(?'proto'http|https):\/{2}(?'hostname'[0-9.\-A-Za-z]+)(?'port':\d{1,5})?(?'trailingslash'\/)?$"
 
     # check for match
-    If (($m = $pattern.Match($url)).Success) {
+    If (($m = $pattern.Match($Url)).Success) {
         # rebuild URL (to be valid for netsh)
         $proto = $m.Groups['proto'].Value
         $hostname = $m.Groups['hostname'].Value
@@ -254,12 +254,12 @@ Add urlacl for http.sys
         # add urlacl for http.sys
         if(-Not (Invoke-Expression "netsh.exe http show urlacl url=$validUrl" | Where-Object { $_ -match [regex]::Escape($validUrl) }))
         {
-            Write-Debug -Message ('Granting {0} permission to listen on {1}.' -f $login, $validUrl)
-            Invoke-Expression "netsh.exe http add urlacl url=$validUrl user='$login'" | Write-Debug
+            Write-Debug -Message ('Granting {0} permission to listen on {1}.' -f $Login, $validUrl)
+            Invoke-Expression "netsh.exe http add urlacl url=$validUrl user='$Login'" | Write-Debug
         }
     }
     Else {
-        throw "This is not a valid URL: $url"
+        throw "This is not a valid URL: $Url"
     }
 }
 
@@ -271,46 +271,33 @@ Create a new windows service instance.
     param (
         [Parameter(Mandatory=$true)]
         [String]
-        $loginBase64,
+        $LoginBase64,
 
         [Parameter(Mandatory=$true)]
         [String]
-        $unsecurePassworBase64,
+        $UnsecurePassBase64,
 
         [Parameter(Mandatory=$true)]
         [String]
-        $targetService,
+        $ServiceName,
 
         [Parameter(Mandatory=$true)]
         [String] 
-        $targetServiceBinPath,
+        $ServiceBinPath,
 
         [String]
-        $targetServiceDescription
+        $ServiceDescription
     )
 
-    # check if vars were passed
-    if ($null -eq $loginBase64) { throw "Login is null." }
-    if ($null -eq $unsecurePassworBase64) { throw "Password is null." }
-
-    # TODO: add check - a login must be in MACHINENAME\USERNAME format
-
-    # decode login and password (it has to be encoded in Jenkins pipeline for circumvention of credential masking)
-    $login = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($loginBase64)).Trim()
-    $unsecurePassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($unsecurePassworBase64)).Trim()
-
-    # convert plain text to secure password
-    $password = ConvertTo-SecureString $unsecurePassword -AsPlainText -Force
-
     # create PSCredential
-    $credential = New-Object System.Management.Automation.PSCredential($login, $password)
+    $credential = Get-CredentialFromBase64($LoginBase64, $UnsecurePassBase64)
 
     # deploy
     New-Service `
-        -Name "$targetService" `
-        -BinaryPathName "$targetServiceBinPath" `
-        -DisplayName "$targetService" `
-        -Description "$targetServiceDescription" `
+        -Name "$ServiceName" `
+        -BinaryPathName "$ServiceBinPath" `
+        -DisplayName "$ServiceName" `
+        -Description "$ServiceDescription" `
         -StartupType Automatic `
         -Credential $credential `
         -ErrorAction Stop `
@@ -325,30 +312,30 @@ Start a windows service instance and make sure it is started.
     param (
         [Parameter(Mandatory=$true)]
         [String]
-        $targetService,
+        $ServiceName,
         
         [Parameter(Mandatory=$true)]
-        [String] 
-        $targetServiceBinPath,
+        [String]
+        $ServiceBinPath,
 
         [Int]
-        $wait = 3
+        $Wait = 3
     )
 
-    $service = Get-Service -Name $targetService -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+    $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
     
     # check for service to exists and not being running
     If ($null -eq $service) {
-        throw "A service named '$targetService' was not found!"
+        throw "A service named '$ServiceName' was not found!"
     }
     If ($service.Status -eq "Running") {
-        throw "The service '$targetService' is already running!"
+        throw "The service '$ServiceName' is already running!"
     }
 
     # start
     $date = (Get-Date)
     $service | Start-Service -ErrorVariable StartError -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds $wait    # wait a little
+    Start-Sleep -Seconds $Wait    # wait a little
 
     If ($StartError) {
         # write errors from EventLog, if failed
@@ -373,14 +360,14 @@ Start a windows service instance and make sure it is started.
     }
 
     # check for service status
-    $service = Get-Service -Name $targetService -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+    $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
     If (-Not $service.Status -eq "Running") {
-        throw "The service '$targetService' is not running $wait seconds after the start attempt!"
+        throw "The service '$ServiceName' is not running $Wait seconds after the start attempt!"
     }
 
     # check for running executable
-    If (@( Get-Process | Where-Object { $_.Path -eq $targetServiceBinPath } ).Count -lt 1) {
-        throw "The service executable ($targetServiceBinPath) is not running!"
+    If (@( Get-Process | Where-Object { $_.Path -eq $ServiceBinPath } ).Count -lt 1) {
+        throw "The service executable ($ServiceBinPath) is not running!"
     }
 }
 
@@ -392,33 +379,33 @@ Stop a windows service instance and make sure it is stopped.
     param (
         [Parameter(Mandatory=$true)]
         [String]
-        $targetService,
+        $ServiceName,
         
         [Parameter(Mandatory=$true)]
         [String] 
-        $targetServiceBinPath,
+        $ServiceBinPath,
 
         [Int]
-        $wait = 3
+        $Wait = 3
     )
 
-    $service = Get-Service -Name $targetService -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+    $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
     
     # check for service to exists and is running, then stop it
     If ((-Not $null -eq $service) -And ($service.Status -eq "Running")) {
         $service | Stop-Service
-        Start-Sleep -Seconds $wait
+        Start-Sleep -Seconds $Wait
     }
 
     # check for service status
-    $service = Get-Service -Name $targetService -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+    $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
     If ((-Not $null -eq $service) -And ($service.Status -eq "Running")) {
         throw "Attempt to stop was unsuccessful!"
     }
 
     # check for running executable
-    If (( Get-Process | Where-Object { $_.Path -eq $targetServiceBinPath } ).Count -gt 0) {
-        throw "The service executable ($targetServiceBinPath) is still running!"
+    If (( Get-Process | Where-Object { $_.Path -eq $ServiceBinPath } ).Count -gt 0) {
+        throw "The service executable ($ServiceBinPath) is still running!"
     }
 }
 
@@ -430,10 +417,10 @@ Invokes a sudo expression
     param (
         [Parameter(Mandatory=$true)]
         [String]
-        $Command
+        $Expression
     )
     $errFile = "/tmp/$($(New-Guid).Guid).err"
-    Invoke-Expression "sudo ${Command} 2>${errFile}" -ErrorAction Stop
+    Invoke-Expression "sudo ${Expression} 2>${errFile}" -ErrorAction Stop
     $err = Get-Content $errFile -ErrorAction SilentlyContinue
     Remove-Item $errFile -ErrorAction SilentlyContinue
     If (-Not $null -eq $err)
@@ -469,11 +456,11 @@ Remove a systemd service instance.
     param (
         [Parameter(Mandatory=$true)]
         [String]
-        $targetService
+        $ServiceName
     )
-    If (Test-Path -Path "/usr/lib/systemd/system/${targetService}.service") {
+    If (Test-Path -Path "/usr/lib/systemd/system/${ServiceName}.service") {
         # remove unit file
-        Invoke-SudoExpression "rm /usr/lib/systemd/system/${targetService}.service"
+        Invoke-SudoExpression "rm /usr/lib/systemd/system/${ServiceName}.service"
 
         # reload systemd manager configuration
         Invoke-SudoExpression "systemctl daemon-reload"
@@ -488,45 +475,50 @@ Create a new systemd service instance.
     param (
         [Parameter(Mandatory=$true)]
         [String]
-        $targetUser,
+        $ServiceUser,
 
         [Parameter(Mandatory=$true)]
         [String]
-        $targetService,
+        $ServiceGroup,
+
+        [Parameter(Mandatory=$true)]
+        [String]
+        $ServiceName,
 
         [Parameter(Mandatory=$true)]
         [String] 
-        $targetServiceBinPath,
+        $ServiceBinPath,
 
         [Parameter(Mandatory=$true)]
         [String]
-        $targetFolder,
+        $ServiceFolder,
 
         [String]
-        $targetServiceDescription
+        $ServiceDescription
     )
     # unit configuration
     $tempUnitFile = [System.IO.Path]::GetTempFileName()
 @"
 [Unit]
-Description=$targetServiceDescription
+Description=$ServiceDescription
 Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=$targetFolder
-ExecStart=$targetServiceBinPath
+WorkingDirectory=$ServiceFolder
+ExecStart=$ServiceBinPath
 ExecStop=/usr/bin/kill -s INT $MAINPID
-User=$targetUser
+User=$ServiceUser
+Group=$ServiceGroup
 
 [Install]
 WantedBy=multi-user.target
 "@ | Set-Content -Path $tempUnitFile -Encoding UTF8 -Force
 
     # move unit configuration into systemd directory
-    Invoke-SudoExpression "mv $tempUnitFile /usr/lib/systemd/system/${targetService}.service"
-    Invoke-SudoExpression "chown root:root /usr/lib/systemd/system/${targetService}.service"
-    Invoke-SudoExpression "chmod 644 /usr/lib/systemd/system/${targetService}.service"
+    Invoke-SudoExpression "mv $tempUnitFile /usr/lib/systemd/system/${ServiceName}.service"
+    Invoke-SudoExpression "chown root:root /usr/lib/systemd/system/${ServiceName}.service"
+    Invoke-SudoExpression "chmod 644 /usr/lib/systemd/system/${ServiceName}.service"
 
     # reload systemd manager configuration
     Invoke-SudoExpression "systemctl daemon-reload"
@@ -540,38 +532,37 @@ Start a systemd service instance and make sure it is started.
     param (
         [Parameter(Mandatory=$true)]
         [String]
-        $targetService,
+        $ServiceName,
         
         [Parameter(Mandatory=$true)]
         [String] 
-        $targetServiceBinPath,
+        $ServiceBinPath,
 
         [Int]
-        $wait = 3
+        $Wait = 3
     )
 
-    # start
-    $date = Invoke-Expression "date --rfc-3339=seconds | sed 's/+[0-9]*:[0-9]*$//g'"
+    #$date = Invoke-Expression "date --rfc-3339=seconds | sed 's/+[0-9]*:[0-9]*$//g'"
     try {
-        Invoke-SudoExpression "systemctl start ${targetService}.service"
-        Start-Sleep -Seconds $wait    # wait a little
+        # start
+        Invoke-SudoExpression "systemctl start ${ServiceName}"
+        Start-Sleep -Seconds $Wait    # wait a little
+
+        # check for service status
+        $activeState = Invoke-SudoExpression "systemctl is-active ${ServiceName}"
+        If ($activeState -ne 'active') {
+            throw "The service '$ServiceName' is not running $Wait seconds after the start attempt! (active state is not 'active')"
+        }
+
+        # check for running executable
+        If (@( Get-Process | Where-Object { $_.Path -eq $ServiceBinPath } ).Count -lt 1) {
+            throw "The service executable ($ServiceBinPath) is not running!"
+        }
     }
     catch {
-        Invoke-SudoExpression "journalctl -u ${targetService}.service -S '${date}'"
+        #Invoke-SudoExpression "journalctl -u ${ServiceName} -S '${date}'"
+        Invoke-SudoExpression "systemctl status ${ServiceName}"
         throw $PSItem   # re-throw exception
-    }
-
-    # check for service status
-    $activeState = Invoke-SudoExpression "systemctl is-active ${targetService}.service"
-    If ($activeState -ne 'active') {
-        Invoke-SudoExpression "journalctl -u ${targetService}.service -S '${date}'"
-        throw "The service '$targetService' is not running $wait seconds after the start attempt! (active state is not 'active')"
-    }
-
-    # check for running executable
-    If (@( Get-Process | Where-Object { $_.Path -eq $targetServiceBinPath } ).Count -lt 1) {
-        Invoke-SudoExpression "journalctl -u ${targetService}.service -S '${date}'"
-        throw "The service executable ($targetServiceBinPath) is not running!"
     }
 }
 
@@ -583,38 +574,38 @@ Stop a systemd service instance and make sure the service it is stopped.
     param (
         [Parameter(Mandatory=$true)]
         [String]
-        $targetService,
+        $ServiceName,
         
         [Parameter(Mandatory=$true)]
         [String] 
-        $targetServiceBinPath,
+        $ServiceBinPath,
 
         [Int]
-        $wait = 3
+        $Wait = 3
     )
 
     # check for active status
-    $activeState = Invoke-SudoExpression "systemctl is-active ${targetService}.service"
+    $activeState = Invoke-SudoExpression "systemctl is-active ${ServiceName}"
     If ($activeState -eq 'active') {
-
-        # stop
-        $date = Invoke-Expression "date --rfc-3339=seconds | sed 's/+[0-9]*:[0-9]*$//g'"
+        #$date = Invoke-Expression "date --rfc-3339=seconds | sed 's/+[0-9]*:[0-9]*$//g'"
         try {
-            Invoke-SudoExpression "systemctl stop ${targetService}.service"
-            Start-Sleep -Seconds $wait    # wait a little
+            # stop
+            Invoke-SudoExpression "systemctl stop ${ServiceName}"
+            Start-Sleep -Seconds $Wait    # wait a little
+
+            # check for service status
+            # TODO: check and throw "Attempt to stop was unsuccessful!"
+
+            # check for running executable
+            If (( Get-Process | Where-Object { $_.Path -eq $ServiceBinPath } ).Count -gt 0) {
+                throw "The service executable ($ServiceBinPath) is still running!"
+            }
         }
         catch {
-            Invoke-SudoExpression "journalctl -u ${targetService}.service -S '${date}'"
+            #Invoke-SudoExpression "journalctl -u ${ServiceName} -S '${date}'"
+            Invoke-SudoExpression "systemctl status ${ServiceName}"
             throw $PSItem   # re-throw exception
         }
-    }
-
-    # check for service status
-    # TODO: check and throw "Attempt to stop was unsuccessful!"
-
-    # check for running executable
-    If (( Get-Process | Where-Object { $_.Path -eq $targetServiceBinPath } ).Count -gt 0) {
-        throw "The service executable ($targetServiceBinPath) is still running!"
     }
 }
 
