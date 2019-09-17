@@ -1,31 +1,25 @@
-function Export-FunctionRemote {
-<#
-.SYNOPSIS
-Exports function to the remote session
-#>
-    param (
-        [Parameter(Mandatory=$true)]
-        [System.Management.Automation.Runspaces.PSSession]
-        $Session,
-
-        [Parameter(Mandatory=$true)]
-        [String]
-        $FuncName
-    )
-
-    $funcBody = $(Get-Content function:\$FuncName)
-
-    $funcDef = "function $FuncName {"
-    $funcDef += $funcBody
-    $funcDef += '}'
-
-    Invoke-Command -Session $Session -ScriptBlock ([ScriptBlock]::Create($funcDef))
-}
-
 function Merge-Objects ($Target, $Source) {
 <#
 .SYNOPSIS
 Update a target object with properties from the source object. Designed to be used with JSON transformations.
+
+.EXAMPLE
+Given two in-memory objects created from JSON configs like:
+
+    $config = Get-Content ".../appsettings.json" -raw | ConvertFrom-Json
+    $configProd = Get-Content ".../appsettings.Production.json" -raw | ConvertFrom-Json
+
+you can merge one into another, for instance:
+
+    Merge-Objects $config $configProd
+
+then configure some properties:
+
+    $config.Kestrel.EndPoints.Http.Url = $Env:URL
+
+and save back to JSON:
+
+    $config | ConvertTo-Json -depth 32 | Set-Content ".../appsettings.json"
 #>
     $Source.psobject.Properties | ForEach-Object {
         If ($_.TypeNameOfValue -eq 'System.Management.Automation.PSCustomObject' -and $Target."$($_.Name)" ) {
@@ -41,6 +35,16 @@ function Update-KnownHosts ([Parameter(Mandatory)][String] $Hostname) {
 <#
 .SYNOPSIS
 Update user's known_hosts file for SSH (add keys for provided hostname).
+
+.EXAMPLE
+Given a target hostname defined like:
+
+    $hostname = "..."
+
+to guarantee successful connection you can check and update SSH known hosts before opening a session:
+
+    Update-KnownHosts $hostname
+    $s = New-PSSession -HostName $hostname -UserName ... -KeyFilePath ...
 #>
     Write-Debug "Fetching keys for $Hostname"
     # somewhy hash can be unstable, so we don't use -H parameter
@@ -59,39 +63,27 @@ Update user's known_hosts file for SSH (add keys for provided hostname).
     }
 }
 
-function Get-CredentialFromBase64 {
-<#
-.SYNOPSIS
-Return PSCredential object for base64-encoded login and password.
-#>
-    param (
-        [Parameter(Mandatory=$true)]
-        [String]
-        $LoginBase64,
-
-        [Parameter(Mandatory=$true)]
-        [String]
-        $UnsecurePassBase64
-    )
-
-    # check if vars were passed
-    if ($null -eq $LoginBase64) { throw "Login is null." }
-    if ($null -eq $UnsecurePassBase64) { throw "Password is null." }
-
-    # decode login and password (it has to be encoded in Jenkins pipeline for circumvention of credential masking)
-    $login = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($LoginBase64)).Trim()
-    $unsecurePassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($UnsecurePassBase64)).Trim()
-
-    # convert plain text to secure password
-    $password = ConvertTo-SecureString $unsecurePassword -AsPlainText -Force
-
-    New-Object System.Management.Automation.PSCredential($login, $password)
-}
-
 function Confirm-DotnetRuntimeWindows {
 <#
 .SYNOPSIS
-Check if existing .Net Core shared framework can satisfy your requirements on Windows
+Checks if installed .Net Core on Windows can satisfy your requirements
+
+.EXAMPLE
+Given a target dotnet framework version defined like:
+
+    $dotnetVer = '2.2'
+
+to guarantee success for subsequent operations you can check dotnet framework on the target host in a remote session:
+
+    Invoke-Command -Session ... -ArgumentList $dotnetVer -ScriptBlock ([ScriptBlock]::Create(${function:Confirm-DotnetRuntimeWindows}))
+
+Also, you can check for both - version and shared framework name, for instance if you depend on aspnetcore-runtime-2.2 do:
+
+    $dotnetVer= '2.2'
+    $dotnetFx = 'Microsoft.AspNetCore.App'
+    Invoke-Command -Session ... -ArgumentList $dotnetVer, $dotnetFx -ScriptBlock ([ScriptBlock]::Create(${function:Confirm-DotnetRuntimeWindows}))
+
+By default the function checks for dotnet-runtime (not aspnet).
 #>
     param (
         [Parameter(Mandatory=$true)]
@@ -126,7 +118,24 @@ Check if existing .Net Core shared framework can satisfy your requirements on Wi
 function Confirm-DotnetRuntimeLinux {
 <#
 .SYNOPSIS
-Check if existing .Net Core shared framework can satisfy your requirements on Linux
+Checks if installed .Net Core on Linux can satisfy your requirements
+
+.EXAMPLE
+Given a target dotnet framework version defined like:
+
+    $dotnetVer = '2.2'
+
+to guarantee success for subsequent operations you can check dotnet framework on the target host in a remote session:
+
+    Invoke-Command -Session ... -ArgumentList $dotnetVer -ScriptBlock ([ScriptBlock]::Create(${function:Confirm-DotnetRuntimeLinux}))
+
+Also, you can check for both - version and shared framework name, for instance if you depend on aspnetcore-runtime-2.2 do:
+
+    $dotnetVer= '2.2'
+    $dotnetFx = 'Microsoft.AspNetCore.App'
+    Invoke-Command -Session ... -ArgumentList $dotnetVer, $dotnetFx -ScriptBlock ([ScriptBlock]::Create(${function:Confirm-DotnetRuntimeLinux}))
+
+By default the function checks for dotnet-runtime (not aspnet).
 #>
     param (
         [Parameter(Mandatory=$true)]
@@ -158,10 +167,112 @@ Check if existing .Net Core shared framework can satisfy your requirements on Li
     }
 }
 
+function Export-FunctionRemote {
+<#
+.SYNOPSIS
+Exports function to the remote session
+
+.EXAMPLE
+Given a session created like:
+
+    $s = New-PSSession -HostName ... -UserName ... -KeyFilePath ...
+
+you can export some function in it, for instance:
+
+    Export-FunctionRemote -Session $s -FuncName "Invoke-SudoExpression"
+
+to be able to invoke other functions that use exported function internally, like:
+
+    Invoke-SudoCommand -Session $s -Command "..."
+    Invoke-Command -Session $s -ArgumentList ... -ScriptBlock ([ScriptBlock]::Create(${function:Remove-ServiceInstanceLinux}))
+
+In this example function Invoke-SudoExpression is used in Invoke-SudoCommand and in Remove-ServiceInstanceLinux.
+#>
+    param (
+        [Parameter(Mandatory=$true)]
+        [System.Management.Automation.Runspaces.PSSession]
+        $Session,
+
+        [Parameter(Mandatory=$true)]
+        [String]
+        $FuncName
+    )
+
+    $funcBody = $(Get-Content function:\$FuncName)
+
+    $funcDef = "function $FuncName {"
+    $funcDef += $funcBody
+    $funcDef += '}'
+
+    Invoke-Command -Session $Session -ScriptBlock ([ScriptBlock]::Create($funcDef))
+}
+
+function Get-CredentialFromBase64 {
+<#
+.SYNOPSIS
+Returns PSCredential object for base64-encoded login and password
+
+.EXAMPLE
+In Jenkinsfile to circumvent passing of login and password in clear text (Jenking doesn't allow it) use base-64 encoding, for instance:
+
+    withCredentials([usernamePassword(credentialsId: '...', passwordVariable: 'SERVICE_PASSWD', usernameVariable: 'SERVICE_LOGIN')]) {
+        env.SERVICE_LOGIN_BASE64 = sh(script: 'set +x && echo $SERVICE_LOGIN | base64', , returnStdout: true).trim()
+        env.SERVICE_PASSWD_BASE64 = sh(script: 'set +x && echo $SERVICE_PASSWD | base64', , returnStdout: true).trim()
+        sh "pwsh -File ..."
+    }
+
+In invoked Powershell script you can create PSCredential object from base-64 encoded login and password while creating a windows service, like:
+
+    Export-FunctionRemote -Session ... -FuncName "Get-CredentialFromBase64"
+    Invoke-Command `
+        -Session ... `
+        -ArgumentList `
+            $Env:SERVICE_LOGIN_BASE64, `
+            $Env:SERVICE_PASSWD_BASE64, `
+            ..., `
+            ..., `
+            ... `
+        -ScriptBlock ([ScriptBlock]::Create(${function:New-ServiceInstanceWindows}))
+
+In this example function Get-CredentialFromBase64 is used in New-ServiceInstanceWindows.
+#>
+    param (
+        [Parameter(Mandatory=$true)]
+        [String]
+        $LoginBase64,
+
+        [Parameter(Mandatory=$true)]
+        [String]
+        $UnsecurePassBase64
+    )
+
+    # check if vars were passed
+    if ($null -eq $LoginBase64) { throw "Login is null." }
+    if ($null -eq $UnsecurePassBase64) { throw "Password is null." }
+
+    # decode login and password (it has to be encoded in Jenkins pipeline for circumvention of credential masking)
+    $login = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($LoginBase64)).Trim()
+    $unsecurePassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($UnsecurePassBase64)).Trim()
+
+    # convert plain text to secure password
+    $password = ConvertTo-SecureString $unsecurePassword -AsPlainText -Force
+
+    New-Object System.Management.Automation.PSCredential($login, $password)
+}
+
 function Grant-LogonAsServiceWindows {
 <#
 .SYNOPSIS
-Grant permission for an account to log on as a service on Windows.
+Grants permission for an account to log on as a service on Windows
+
+.EXAMPLE
+Given a login defined as (look up to Get-CredentialFromBase64 for why it's in base-64):
+
+    $login = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:SERVICE_LOGIN_BASE64)).Trim()
+
+you can make sure it's having log on as a service permission on the target machine (before creating a windows service) by doing:
+
+    Invoke-Command -Session $s -ArgumentList $login -ScriptBlock ([ScriptBlock]::Create(${function:Grant-LogonAsServiceWindows}))
 #>
     param (
         [Parameter(Mandatory=$true)]
@@ -228,7 +339,17 @@ SeServiceLogonRight = $($sids -join ',')
 function Add-UrlAclWindows {
 <#
 .SYNOPSIS
-Add urlacl for http.sys
+Adds urlacl for http.sys
+
+.EXAMPLE
+Given a login and url defined as (look up to Get-CredentialFromBase64 for why login is in base-64):
+
+    $login = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:SERVICE_LOGIN_BASE64)).Trim()
+    $url = $Env:URL
+
+you can make sure it's having a permission on the target machine to listen on the URL by doing:
+
+    Invoke-Command -Session $s -ArgumentList $login, $url -ScriptBlock ([ScriptBlock]::Create(${function:Add-UrlAclWindows}))
 #>
     param (
         [Parameter(Mandatory=$true)]
@@ -266,7 +387,26 @@ Add urlacl for http.sys
 function New-ServiceInstanceWindows {
 <#
 .SYNOPSIS
-Create a new windows service instance.
+Creates a new windows service instance
+
+.EXAMPLE
+Because it uses Get-CredentialFromBase64, you have to export it first:
+
+    Export-FunctionRemote -Session ... -FuncName "Get-CredentialFromBase64"
+
+then you can create a windows service by doing like:
+
+    Invoke-Command `
+        -Session ... `
+        -ArgumentList `
+            $Env:SERVICE_LOGIN_BASE64, `
+            $Env:SERVICE_PASSWD_BASE64, `
+            ..., `
+            ..., `
+            ... `
+        -ScriptBlock ([ScriptBlock]::Create(${function:New-ServiceInstanceWindows}))
+
+For more look up to Get-CredentialFromBase64 example.
 #>
     param (
         [Parameter(Mandatory=$true)]
@@ -307,19 +447,30 @@ Create a new windows service instance.
 function Start-ServiceInstanceWindows {
 <#
 .SYNOPSIS
-Start a windows service instance and make sure it is started.
+Starts a windows service instance and makes sure it's started
+
+.EXAMPLE
+Given a service name and binary path defined as:
+
+    $serviceName = 'MyService'
+    $serviceBinPath = '.../.../MyService.exe'
+
+you can start a (previously created) windows service:
+
+    Invoke-Command -Session ... -ArgumentList $serviceName, $serviceBinPath -ScriptBlock ([ScriptBlock]::Create(${function:Start-ServiceInstanceWindows}))
+
+The reason to give a $ServiceBinPath is to make sure the process is running after the service was started.
 #>
     param (
         [Parameter(Mandatory=$true)]
         [String]
         $ServiceName,
-        
-        [Parameter(Mandatory=$true)]
+
         [String]
         $ServiceBinPath,
 
         [Int]
-        $Wait = 3
+        $Wait = 6
     )
 
     $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
@@ -365,28 +516,41 @@ Start a windows service instance and make sure it is started.
         throw "The service '$ServiceName' is not running $Wait seconds after the start attempt!"
     }
 
-    # check for running executable
-    If (@( Get-Process | Where-Object { $_.Path -eq $ServiceBinPath } ).Count -lt 1) {
-        throw "The service executable ($ServiceBinPath) is not running!"
+    # check for running executable (if service path is provided)
+    If ($ServiceBinPath) {
+        If (@( Get-Process | Where-Object { $_.Path -eq $ServiceBinPath } ).Count -lt 1) {
+            throw "The service executable ($ServiceBinPath) is not running!"
+        }
     }
 }
 
 function Stop-ServiceInstanceWindows {
 <#
 .SYNOPSIS
-Stop a windows service instance and make sure it is stopped.
+Stops a windows service instance and makes sure it is stopped
+
+.EXAMPLE
+Given a service name and binary path defined as:
+
+    $serviceName = 'MyService'
+    $serviceBinPath = '.../.../MyService.exe'
+
+you can start a (previously created) windows service:
+
+    Invoke-Command -Session ... -ArgumentList $serviceName, $serviceBinPath -ScriptBlock ([ScriptBlock]::Create(${function:Stop-ServiceInstanceWindows}))
+
+The reason to give a $ServiceBinPath is to make sure the process is not running after the service was stopped.
 #>
     param (
         [Parameter(Mandatory=$true)]
         [String]
         $ServiceName,
         
-        [Parameter(Mandatory=$true)]
         [String] 
         $ServiceBinPath,
 
         [Int]
-        $Wait = 3
+        $Wait = 6
     )
 
     $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
@@ -403,9 +567,11 @@ Stop a windows service instance and make sure it is stopped.
         throw "Attempt to stop was unsuccessful!"
     }
 
-    # check for running executable
-    If (( Get-Process | Where-Object { $_.Path -eq $ServiceBinPath } ).Count -gt 0) {
-        throw "The service executable ($ServiceBinPath) is still running!"
+    # check for running executable (if service path is provided)
+    If ($ServiceBinPath) {
+        If (( Get-Process | Where-Object { $_.Path -eq $ServiceBinPath } ).Count -gt 0) {
+            throw "The service executable ($ServiceBinPath) is still running!"
+        }
     }
 }
 
@@ -413,6 +579,16 @@ function Invoke-SudoExpression {
 <#
 .SYNOPSIS
 Invokes a sudo expression
+
+.EXAMPLE
+Before using functions that invoke Invoke-SudoExpression in a remote session you have to export it like:
+
+    Export-FunctionRemote -Session ... -FuncName "Invoke-SudoExpression"
+
+then you can invoke such functions, for instance:
+
+    Invoke-Command -Session ... -ArgumentList ... -ScriptBlock ([ScriptBlock]::Create(${function:Remove-FirewalldServiceLinux}))
+    Invoke-SudoCommand -Session ... -Command "..."
 #>
     param (
         [Parameter(Mandatory=$true)]
@@ -432,7 +608,16 @@ Invokes a sudo expression
 function Invoke-SudoCommand {
 <#
 .SYNOPSIS
-Invokes a sudo command in the remote session to Linux
+Invokes a sudo expression in the remote session to Linux
+
+.EXAMPLE
+First you have to export Invoke-SudoExpression in a remote session:
+
+    Export-FunctionRemote -Session ... -FuncName "Invoke-SudoExpression"
+
+then you can do like:
+
+    Invoke-SudoCommand -Session ... -Command "..."
 #>
     param (
         [Parameter(Mandatory=$true)]
@@ -451,7 +636,7 @@ Invokes a sudo command in the remote session to Linux
 function Remove-ServiceInstanceLinux {
 <#
 .SYNOPSIS
-Remove a systemd service instance.
+Removes a systemd service instance
 #>
     param (
         [Parameter(Mandatory=$true)]
@@ -470,7 +655,7 @@ Remove a systemd service instance.
 function New-ServiceInstanceLinux {
 <#
 .SYNOPSIS
-Create a new systemd service instance.
+Creates a new systemd service instance
 #>
     param (
         [Parameter(Mandatory=$true)]
@@ -527,19 +712,18 @@ WantedBy=multi-user.target
 function Start-ServiceInstanceLinux {
 <#
 .SYNOPSIS
-Start a systemd service instance and make sure it is started.
+Starts a systemd service instance and makes sure it is started
 #>
     param (
         [Parameter(Mandatory=$true)]
         [String]
         $ServiceName,
         
-        [Parameter(Mandatory=$true)]
         [String] 
         $ServiceBinPath,
 
         [Int]
-        $Wait = 3
+        $Wait = 6
     )
 
     #$date = Invoke-Expression "date --rfc-3339=seconds | sed 's/+[0-9]*:[0-9]*$//g'"
@@ -549,20 +733,22 @@ Start a systemd service instance and make sure it is started.
         Start-Sleep -Seconds $Wait    # wait a little
 
         # check for service status
-        $activeState = Invoke-SudoExpression "systemctl is-active ${ServiceName}"
+        $activeState = Invoke-Expression "systemctl is-active ${ServiceName}"
         If ($activeState -ne 'active') {
             throw "The service '$ServiceName' is not running $Wait seconds after the start attempt! (active state is not 'active')"
         }
 
         # check for running executable
         # FIXME: doesn't work for dlls started with dotnet command
-        # If (@( Get-Process | Where-Object { $_.Path -eq $ServiceBinPath } ).Count -lt 1) {
+        # If ($ServiceBinPath) {
+        #   If (@( Get-Process | Where-Object { $_.Path -eq $ServiceBinPath } ).Count -lt 1) {
         #     throw "The service executable ($ServiceBinPath) is not running!"
+        #   }
         # }
     }
     catch {
-        #Invoke-SudoExpression "journalctl -u ${ServiceName} -S '${date}'"
-        Invoke-SudoExpression "systemctl status ${ServiceName}"
+        #Invoke-Expression "journalctl -u ${ServiceName} -S '${date}'"
+        Invoke-Expression "systemctl status ${ServiceName}"
         throw $PSItem   # re-throw exception
     }
 }
@@ -570,48 +756,145 @@ Start a systemd service instance and make sure it is started.
 function Stop-ServiceInstanceLinux {
 <#
 .SYNOPSIS
-Stop a systemd service instance and make sure the service it is stopped.
+Stops a systemd service instance and makes sure it is stopped
 #>
     param (
         [Parameter(Mandatory=$true)]
         [String]
         $ServiceName,
         
-        [Parameter(Mandatory=$true)]
-        [String] 
+        [String]
         $ServiceBinPath,
 
         [Int]
-        $Wait = 3
+        $Wait = 6
     )
 
     # check for active status
-    $activeState = Invoke-SudoExpression "systemctl is-active ${ServiceName}"
+    $activeState = Invoke-Expression "systemctl is-active ${ServiceName}"
     If ($activeState -eq 'active') {
         #$date = Invoke-Expression "date --rfc-3339=seconds | sed 's/+[0-9]*:[0-9]*$//g'"
         try {
             # stop
             Invoke-SudoExpression "systemctl stop ${ServiceName}"
-            Start-Sleep -Seconds $Wait    # wait a little
+            # Start-Sleep -Seconds $Wait    # wait a little
 
             # check for service status
             # TODO: check and throw "Attempt to stop was unsuccessful!"
 
             # check for running executable
             # FIXME: doesn't work for dlls started with dotnet command
-            # If (( Get-Process | Where-Object { $_.Path -eq $ServiceBinPath } ).Count -gt 0) {
+            # If ($ServiceBinPath) {
+            #   If (( Get-Process | Where-Object { $_.Path -eq $ServiceBinPath } ).Count -gt 0) {
             #     throw "The service executable ($ServiceBinPath) is still running!"
+            #   }
             # }
         }
         catch {
-            #Invoke-SudoExpression "journalctl -u ${ServiceName} -S '${date}'"
-            Invoke-SudoExpression "systemctl status ${ServiceName}"
+            #Invoke-Expression "journalctl -u ${ServiceName} -S '${date}'"
+            Invoke-Expression "systemctl status ${ServiceName}"
             throw $PSItem   # re-throw exception
         }
     }
 }
 
+function Remove-FirewalldServiceLinux {
+<#
+.SYNOPSIS
+Removes a firewalld service
+#>
+    param (
+        [Parameter(Mandatory=$true)]
+        [String]
+        $ServiceName
+    )
+    try {
+        Invoke-SudoExpression "bash -c '[[ -f /etc/firewalld/services/${ServiceName}.xml ]] && firewall-cmd --permanent --delete-service=${ServiceName}'"
+    }
+    catch {
+        throw "Firewalld service wasn't deleted: $_"
+    }
+}
+
+function New-FirewalldServiceLinux {
+<#
+.SYNOPSIS
+Creates a firewalld service
+#>
+    param (
+        [Parameter(Mandatory=$true)]
+        [String]
+        $ServiceName,
+
+        [Parameter(Mandatory=$true)]
+        [String]
+        $Port,
+
+        [String]
+        $ServiceDescription,
+
+        [String]
+        $ServiceShort
+    )
+    try {
+        Invoke-SudoExpression "firewall-cmd --permanent --new-service=${ServiceName}"
+        Invoke-SudoExpression "firewall-cmd --permanent --service=${ServiceName} --add-port=${Port}"
+        If ($ServiceDescription ) {
+            Invoke-SudoExpression "firewall-cmd --permanent --service=${ServiceName} --set-description='${ServiceDescription}'"
+        }
+        If ($ServiceShort) {
+            Invoke-SudoExpression "firewall-cmd --permanent --service=${ServiceName} --set-short='${ServiceShort}'"
+        }
+    }
+    catch {
+        throw "Firewalld service wasn't created: $_"
+    }
+}
+
+function Publish-FirewalldServiceLinux {
+<#
+.SYNOPSIS
+Publishes a firewalld service to zone
+#>
+    param (
+        [Parameter(Mandatory=$true)]
+        [String]
+        $ServiceName,
+
+        [String]
+        $ZoneName = 'public'
+    )
+    try {
+        Invoke-SudoExpression "firewall-cmd --permanent --zone=${ZoneName} --add-service=${ServiceName}"
+    }
+    catch {
+        throw "Firewalld service wasn't published: $_"
+    }
+}
+
+function Unpublish--FirewalldServiceLinux {
+<#
+.SYNOPSIS
+Unpublishes a firewalld service from zone
+#>
+    param (
+        [Parameter(Mandatory=$true)]
+        [String]
+        $ServiceName,
+
+        [String]
+        $ZoneName = 'public'
+    )
+    try {
+        Invoke-SudoExpression "firewall-cmd --permanent --zone=${ZoneName} --remove-service=${ServiceName}"
+    }
+    catch {
+        throw "Firewalld service wasn't unpublished: $_"
+    }
+}
+
 Export-ModuleMember -Function `
-    Export-FunctionRemote, Merge-Objects, Update-KnownHosts, Get-CredentialFromBase64, `
-    Confirm-DotnetRuntimeWindows, Grant-LogonAsServiceWindows, Add-UrlAclWindows, New-ServiceInstanceWindows, Start-ServiceInstanceWindows, Stop-ServiceInstanceWindows, `
-    Confirm-DotnetRuntimeLinux, Invoke-SudoExpression, Invoke-SudoCommand, Remove-ServiceInstanceLinux, New-ServiceInstanceLinux, Start-ServiceInstanceLinux, Stop-ServiceInstanceLinux
+    Merge-Objects, Update-KnownHosts, Confirm-DotnetRuntimeWindows, Confirm-DotnetRuntimeLinux, Export-FunctionRemote, Get-CredentialFromBase64, `
+    Grant-LogonAsServiceWindows, Add-UrlAclWindows, New-ServiceInstanceWindows, Start-ServiceInstanceWindows, Stop-ServiceInstanceWindows, `
+    Invoke-SudoExpression, Invoke-SudoCommand, Remove-ServiceInstanceLinux, New-ServiceInstanceLinux, Start-ServiceInstanceLinux, Stop-ServiceInstanceLinux, `
+    Remove-FirewalldServiceLinux, New-FirewalldServiceLinux, Publish-FirewalldServiceLinux, Unpublish--FirewalldServiceLinux
