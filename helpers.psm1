@@ -866,6 +866,7 @@ Publishes a firewalld service to zone
     )
     try {
         Invoke-SudoExpression "firewall-cmd --permanent --zone=${ZoneName} --add-service=${ServiceName}"
+        Invoke-SudoExpression "firewall-cmd --reload"
     }
     catch {
         throw "Firewalld service wasn't published: $_"
@@ -887,6 +888,7 @@ Unpublishes a firewalld service from zone
     )
     try {
         Invoke-SudoExpression "firewall-cmd --permanent --zone=${ZoneName} --remove-service=${ServiceName}"
+        Invoke-SudoExpression "firewall-cmd --reload"
     }
     catch {
         throw "Firewalld service wasn't unpublished: $_"
