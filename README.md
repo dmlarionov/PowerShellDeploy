@@ -35,7 +35,7 @@ Yes, you may use Ansible, Chef and other tools designed for deploy. But, if for 
 
 Imagine you are deploying 2 services, one to Windows and another to Linux in staging and production environments. So, you have 4 boxes.
 
-First, install PowerShell (Core) everywhere (4 target boxes + build agent) and add it to `sshd_config` (target boxes):
+First, install PowerShell (Core) everywhere (4 target boxes + build agent) and add it on target boxes to `sshd_config`:
 
 ```
 Subsystem       powershell /usr/bin/pwsh -sshs -NoLogo -NoProfile
@@ -113,7 +113,7 @@ pipeline {
 
 Probably, you want to use 2 scripts (in example above) - one for deployment to a Linux boxes and another for deployment to Windows, because staging and productions boxes are similar.
 
-So, create scripts (`./tools/...ps1`) that control low-level deployment steps which take their configurations from environment variables and use it in `Jenkinsfile` stages like:
+So, create scripts (`./tools/...ps1`) that control low-level deployment steps which take their configurations from environment variables and use it in Jenkins stages like:
 
 ```groovy
 stage('Linux service name') {
@@ -155,6 +155,27 @@ env.X_BASE64 = sh(script: 'set +x && echo $X | base64', , returnStdout: true).tr
 I invoke PowerShell script (see `sh "pwsh -File ..."`) inside of `withCredentials` for SSH, because a file with a key wouldn't exists outside of it (Jenkins manages that).
 
 I put `helpers.psm1` in a directory (`./tools/` in my case) with scripts.
+
+I use single parameter for each script (which my way to write it) - a name for non-production environment. So, for production the stage definition would slightly differ:
+
+```groovy
+stage('Linux service name') {
+    options {
+        lock('linux-service-name-prod-deploy')
+    }
+    steps {
+        script {
+            ...
+            withCredentials(...) {
+                ...
+                sh "pwsh -File ./tools/deploy-linux-service-name.ps1"
+            }
+        }
+    }
+}
+```
+
+This was one of possible ways to configure stages and to invoke scripts, you can do it as you like. Now, lets look into PowerShell and how to use my helpers.
 
 Script for Linux deployment usually looks like:
 
