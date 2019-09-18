@@ -2,13 +2,12 @@
 
 The `helpers.psm1` is a PowerShell Module supporting deployment of software services to Linux and Windows, orchestrated by a build system.
 
-I was doing my CI + CD in Jenkins, utilizing PowerShell everywhere, and I collected my own reusable functions in this helpers module. You can use it as is or as a code samples, if you are making yours.
+I'm doing my CI + CD with Jenkins, utilizing PowerShell everywhere, and I collected my own reusable functions in this helpers module. You can use it as is or look for a code samples.
 
 ## Features
 
 - No matter what operating system is used (on build agent or on target system), because both (Linux and Windows) can run PowerShell.
 - No matter what protocol (SSH or WinRM / PSRP) is used, but some batteries for SSH are in included.
-- Manipulating configs.
 - Updating SSH known_hosts.
 - Checking .NET runtime (for .NET application deployment).
 - Exporting functions to a remote session.
@@ -153,7 +152,9 @@ Pattern for `Jenkinsfile`, shown above, demonstrates how to pass credentials to 
 env.X_BASE64 = sh(script: 'set +x && echo $X | base64', , returnStdout: true).trim()
 ```
 
-Invoke PowerShell script (see `sh "pwsh -File ..."`) inside of `withCredentials` for SSH, because a file with a key wouldn't exists outside of it (Jenkins manages it).
+I invoke PowerShell script (see `sh "pwsh -File ..."`) inside of `withCredentials` for SSH, because a file with a key wouldn't exists outside of it (Jenkins manages that).
+
+I put `helpers.psm1` in the directory (`./tools/`) with scripts.
 
 Script for Linux deployment, usually, looks like:
 
