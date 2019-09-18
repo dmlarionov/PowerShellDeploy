@@ -35,7 +35,7 @@ Yes, you may use Ansible, Chef and other tools designed for deploy. But, if for 
 
 Imagine you are deploying 2 services, one to Windows and another to Linux in staging and production environments. So, you have 4 boxes.
 
-First, install PowerShell (Core) everywhere (4 target boxes + build agent) and add it to `sshd_config`:
+First, install PowerShell (Core) everywhere (4 target boxes + build agent) and add it to `sshd_config` (target boxes):
 
 ```
 Subsystem       powershell /usr/bin/pwsh -sshs -NoLogo -NoProfile
@@ -146,7 +146,7 @@ stage('Linux service name') {
 }
 ```
 
-Pattern for `Jenkinsfile`, shown above, demonstrates how to pass credentials to PowerShell. If you don't encode it somehow in PowerShell you'll get it as series of asterisks (`****`). So, do:
+Pattern for `Jenkinsfile`, shown above, demonstrates how to pass credentials to PowerShell. If you don't encode it somehow in PowerShell you'll get it as series of asterisks (`****`). So, you have to:
 
 ```groovy
 env.X_BASE64 = sh(script: 'set +x && echo $X | base64', , returnStdout: true).trim()
@@ -154,15 +154,15 @@ env.X_BASE64 = sh(script: 'set +x && echo $X | base64', , returnStdout: true).tr
 
 I invoke PowerShell script (see `sh "pwsh -File ..."`) inside of `withCredentials` for SSH, because a file with a key wouldn't exists outside of it (Jenkins manages that).
 
-I put `helpers.psm1` in the directory (`./tools/`) with scripts.
+I put `helpers.psm1` in a directory (`./tools/` in my case) with scripts.
 
-Script for Linux deployment, usually, looks like:
+Script for Linux deployment usually looks like:
 
 ```powershell
 
 ```
 
-Script for Windows deployment, usually, looks like:
+Script for Windows deployment usually looks like:
 
 ```powershell
 
