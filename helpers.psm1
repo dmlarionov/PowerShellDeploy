@@ -873,7 +873,7 @@ Publishes a firewalld service to zone
     }
 }
 
-function Unpublish--FirewalldServiceLinux {
+function Unpublish-FirewalldServiceLinux {
 <#
 .SYNOPSIS
 Unpublishes a firewalld service from zone
@@ -899,4 +899,4 @@ Export-ModuleMember -Function `
     Merge-Objects, Update-KnownHosts, Confirm-DotnetRuntimeWindows, Confirm-DotnetRuntimeLinux, Export-FunctionRemote, Get-CredentialFromBase64, `
     Grant-LogonAsServiceWindows, Add-UrlAclWindows, New-ServiceInstanceWindows, Start-ServiceInstanceWindows, Stop-ServiceInstanceWindows, `
     Invoke-SudoExpression, Invoke-SudoCommand, Remove-ServiceInstanceLinux, New-ServiceInstanceLinux, Start-ServiceInstanceLinux, Stop-ServiceInstanceLinux, `
-    Remove-FirewalldServiceLinux, New-FirewalldServiceLinux, Publish-FirewalldServiceLinux, Unpublish--FirewalldServiceLinux
+    Remove-FirewalldServiceLinux, New-FirewalldServiceLinux, Publish-FirewalldServiceLinux, Unpublish-FirewalldServiceLinux
