@@ -221,20 +221,11 @@ In Jenkinsfile to circumvent passing of login and password in clear text (Jenkin
         sh "pwsh -File ..."
     }
 
-In invoked Powershell script you can create PSCredential object from base-64 encoded login and password while creating a windows service, like:
+In Powershell script you can create PSCredential object from base-64 encoded login and password:
 
-    Export-FunctionRemote -Session ... -FuncName "Get-CredentialFromBase64"
-    Invoke-Command `
-        -Session ... `
-        -ArgumentList `
-            $Env:SERVICE_LOGIN_BASE64, `
-            $Env:SERVICE_PASSWD_BASE64, `
-            ..., `
-            ..., `
-            ... `
-        -ScriptBlock ([ScriptBlock]::Create(${function:New-ServiceInstanceWindows}))
-
-In this example function Get-CredentialFromBase64 is used in New-ServiceInstanceWindows.
+    $credential = Invoke-Command `
+        -ArgumentList $Env:SERVICE_LOGIN_BASE64, $Env:SERVICE_PASSWD_BASE64 `
+        -ScriptBlock ([ScriptBlock]::Create(${function:New-CredentialFromBase64}))
 #>
     param (
         [Parameter(Mandatory=$true)]
@@ -390,32 +381,43 @@ function New-ServiceInstanceWindows {
 Creates a new windows service instance
 
 .EXAMPLE
-Because it uses Get-CredentialFromBase64, you have to export it first:
-
-    Export-FunctionRemote -Session ... -FuncName "Get-CredentialFromBase64"
-
-then you can create a windows service by doing like:
+Given a remote session, plain text login and password, you can create a windows service on the target machine like:
 
     Invoke-Command `
         -Session ... `
+        -ArgumentList ... `
+        -ScriptBlock ([ScriptBlock]::Create(${function:New-ServiceInstanceWindows}))
+
+But, you have to take care about login and password initially. In Jenkinsfile to circumvent passing it in clear text (Jenking doesn't allow it) use base-64 encoding:
+
+    withCredentials([usernamePassword(credentialsId: '...', passwordVariable: 'SERVICE_PASSWD', usernameVariable: 'SERVICE_LOGIN')]) {
+        env.SERVICE_LOGIN_BASE64 = sh(script: 'set +x && echo $SERVICE_LOGIN | base64', , returnStdout: true).trim()
+        env.SERVICE_PASSWD_BASE64 = sh(script: 'set +x && echo $SERVICE_PASSWD | base64', , returnStdout: true).trim()
+        sh "pwsh -File ..."
+    }
+
+Then in Powershell script (invoked as shown above) you can do:
+
+    $login = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:SERVICE_LOGIN_BASE64)).Trim()
+    $unsecurePass = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:SERVICE_PASSWD_BASE64)).Trim()
+    Invoke-Command `
+        -Session ... `
         -ArgumentList `
-            $Env:SERVICE_LOGIN_BASE64, `
-            $Env:SERVICE_PASSWD_BASE64, `
+            $login, `
+            $unsecurePass, `
             ..., `
             ..., `
             ... `
         -ScriptBlock ([ScriptBlock]::Create(${function:New-ServiceInstanceWindows}))
-
-For more look up to Get-CredentialFromBase64 example.
 #>
     param (
         [Parameter(Mandatory=$true)]
         [String]
-        $LoginBase64,
+        $Login,
 
         [Parameter(Mandatory=$true)]
         [String]
-        $UnsecurePassBase64,
+        $UnsecurePass,
 
         [Parameter(Mandatory=$true)]
         [String]
@@ -429,8 +431,11 @@ For more look up to Get-CredentialFromBase64 example.
         $ServiceDescription
     )
 
+    # convert plain text to secure password
+    $password = ConvertTo-SecureString $UnsecurePass -AsPlainText -Force
+    
     # create PSCredential
-    $credential = Get-CredentialFromBase64($LoginBase64, $UnsecurePassBase64)
+    $credential = New-Object System.Management.Automation.PSCredential($login, $password)
 
     # deploy
     New-Service `

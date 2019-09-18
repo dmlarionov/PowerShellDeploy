@@ -1,4 +1,4 @@
-# What it is?
+# What is it?
 
 The `helpers.psm1` is a PowerShell Module supporting deployment of software services to Linux and Windows, orchestrated by a build system.
 
@@ -11,7 +11,7 @@ I was doing my CI + CD in Jenkins, utilizing PowerShell everywhere, and I collec
 - Manipulating configs.
 - Updating SSH known_hosts.
 - Checking .NET runtime (for .NET application deployment).
-- Exporting functions to remote session.
+- Exporting functions to a remote session.
 - Creating credentials from login and password encoded in base-64 (for passing Jenkins Credentials).
 - Granting log on as a service permission (for windows service deployment).
 - Adding URL ACL to http.sys (for deployment of windows service, listening to HTTP).
@@ -20,4 +20,6 @@ I was doing my CI + CD in Jenkins, utilizing PowerShell everywhere, and I collec
 - Invoking sudo expressions and remote commands (on target Linux machine).
 - Creating | removing and starting | stopping systemd services (on target Linux machine).
 - Creating | removing and publishing | unpublishing firewalld services (on target Linux machine).
+
+# How to use it?
 
