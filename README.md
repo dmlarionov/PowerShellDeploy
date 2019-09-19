@@ -127,7 +127,7 @@ pipeline {
 }
 ```
 
-You have to create 2 scripts (one for Windows service, another for Linux service) that control low-level deployment steps which take their configurations through environment variables from `Jenkinsfile` this way:
+You have to create 2 scripts (one for Windows service, another for Linux service) that control low-level deployment steps. Scripts take their configurations through environment variables from `Jenkinsfile` this way:
 
 ```groovy
 stage('Linux service name') {
@@ -160,13 +160,13 @@ stage('Linux service name') {
 }
 ```
 
-Pattern shown above also demonstrates how to pass credentials to PowerShell. If you don't encode it somehow then in PowerShell script you'll get it as series of asterisks (`****`). So, you have to:
+Pattern shown above demonstrates how to pass credentials to PowerShell. If you don't encode it somehow then in PowerShell script you'll get it as series of asterisks (`****`). So, you have to:
 
 ```groovy
 env.SECRET_BASE64 = sh(script: 'set +x && echo $SECRET | base64', , returnStdout: true).trim()
 ```
 
-In PowerShell I decode it back this way:
+In PowerShell I decode it back doing like:
 
 ```powershell
 $secret = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:SECRET_BASE64)).Trim()
