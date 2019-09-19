@@ -28,7 +28,7 @@ First, it runs on Windows and Linux, so you can reuse some code.
 
 Second, it have a notion of remote session, which is used for a command execution at a remote machine. You can orchestrate steps at a master machine (agent machine of CI / CD system), executing commands in sessions to target machines. Each session keeps context, so you can reuse remotely declared functions and variables (lets say - remote state) from its inception till the termination.
 
-If you need to use some library code remotely you don't have to copy these libraries to remote machines, just run script blocks made of its functions or declare functions remotely. I'll show you how.
+If you need to use some library code remotely you don't have to copy these libraries to remote machines, just run script blocks made of functions or declare functions remotely. I'll show you how.
 
 # How to arrange a deployment?
 
@@ -36,8 +36,9 @@ You manage high-level steps like "build", "test", "deploy to stage", "deploy to 
 
 The deployment script is going to be executed at least twice - for staging and for production. Regarding this, my recommendations are:
 
-- Pass a parameter with the name of environment - "stage" or "prod" (or no value for production), because, probably, you may have to manage naming of things (services, deployment folders) by including "stage" suffix or, to be more universal, using environment name as a suffix.
-- Pass everything about configuration using environment variables. It's easy to configure in CI / CD tool.
+- Write a single script for staging and production deployment.
+- Pass a parameter with the name of environment - "stage" or "prod" (or no value for production), because, probably, you may have to manage naming of things (services, deployment folders) by including "stage" suffix or, more universal, any provided environment name as a suffix.
+- Pass everything about configuration (database connection strings, API keys e.t.c.) using environment variables. It's easy to do from CI / CD tool.
 
 So, basically, your PowerShell script is going to be executed like:
 
