@@ -166,7 +166,7 @@ Pattern shown above also demonstrates how to pass credentials to PowerShell. If 
 env.SECRET_BASE64 = sh(script: 'set +x && echo $SECRET | base64', , returnStdout: true).trim()
 ```
 
-In PowerShell code I decode it back this way:
+In PowerShell I decode it back this way:
 
 ```powershell
 $secret = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:SECRET_BASE64)).Trim()
@@ -178,13 +178,13 @@ I put `helpers.psm1` in a directory (`./tools/` in my case) with scripts.
 
 ## Linux service example
 
-For sake of realism in our example, lets assume that:
+For sake of realism in our example lets assume that:
 
 - The source code for Linux service is located at `./src/LinuxServiceName` (from root of the repository).
 - The artifacts are built (earlier in pipeline) to `./artifacts` folder and `LinuxServiceName` located there is the folder we are going to deploy as a systemd service at the target Linux box.
 - The service is written with .NET Core and have to be run with `/usr/bin/dotnet .../LinuxServiceName.dll` command. The required version of a shared framework is passed through DOTNET_RUNTIME environment variable.
 - The target Linux machine name is passed through DEPLOY_HOSTNAME environment variable.
-- The parameters related to RabbitMQ and database connection, that are passed through environment variables, should be added to `appsettings.json` which is the configuration file for deployed service that have to be placed in its folder. Also, there are `appsettings.Production.json` in the source code folder which we want to merge into that `appsetting.json`.
+- The parameters related to RabbitMQ and database connection, that are passed through environment variables, should be added to `appsettings.json` which is the configuration file for the deployed service that have to be placed in its folder. Also, there are `appsettings.Production.json` in the source code folder which we want to merge into that settings.
 - In the SQL_CONNECTION_TEMPLATE there are placeholders `##USR##` and `##PSW##` that have to be substituted with username and password (passed from Jenkins Credentials using other variables).
 - We are going to deploy a systemd service that listens to some HTTP URL and have to open some TCP port using firewalld. So, lets get this through FIREWALLD_PORT and URL environment variables.
 
