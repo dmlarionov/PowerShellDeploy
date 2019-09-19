@@ -55,6 +55,8 @@ First, install PowerShell Core everywhere (4 target boxes + Jenkins agent) and a
 Subsystem       powershell /usr/bin/pwsh -sshs -NoLogo -NoProfile
 ```
 
+Make sure you can login with SSH keys from your Jenkins Credentials to the target machines.
+
 At high-level your `Jenkinsfile` looks like this:
 
 ```groovy
