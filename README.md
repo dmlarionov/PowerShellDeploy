@@ -176,7 +176,7 @@ I invoke PowerShell script (see `sh "pwsh -File ..."`) inside of `withCredential
 
 I put `helpers.psm1` in a directory (`./tools/` in my case) with scripts.
 
-## Linux service example
+## Linux service deployment script
 
 For sake of realism in our example lets assume that:
 
@@ -395,7 +395,7 @@ Remove-PSSession -Session $s
 
 I didn't debug the code above, just sculpted it from existing projects. These scripts differ in the basic setup and in the transforming configuration sections, other sections are the same, they are just added or removed out of necessity.
 
-## Windows service example
+## Windows service deployment script
 
 Lets make general assumptions the same as for the Linux example, but add some specific facts:
 
