@@ -26,7 +26,7 @@ Yes, you may use Ansible, Chef and other tools designed for deploy. But, if you 
 
 First, it runs on Windows and Linux, so you can reuse some code.
 
-Second, it have a notion of remote session, which is used for a command execution at a remote machine. You can orchestrate steps at a master machine (agent machine of CI / CD system), executing commands in sessions to target machines. Each session keeps context, so you can reuse remotely declared functions and variables (lets say - remote state) from its inception till the termination.
+Second, it have a notion of remote session, which is used for a command execution at a remote machine. You can orchestrate steps at a master machine (agent machine of CI / CD system), executing commands in sessions to target machines. Each session keeps context, so you can reuse remotely declared functions and variables (lets say - remote state) from session inception till the termination.
 
 If you need to use some library code remotely you don't have to copy these libraries to remote machines, just run script blocks made of functions or declare functions remotely. I'll show you how.
 
