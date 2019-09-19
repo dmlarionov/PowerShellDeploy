@@ -593,3 +593,5 @@ Sometime you have to add extra wait timeout when stopping or starting Windows se
 Some of the sections are slightly different from its Linux counterparts. But, some code reused.
 
 You can find a lot of solutions for PowerShell, so you can easily customize the code from the examples above for your need. I just documented how I do it and grouped helpful functions in the module.
+
+Thank you for attention.
