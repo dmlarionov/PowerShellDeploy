@@ -39,8 +39,8 @@ You manage high-level steps like "build", "test", "deploy to stage", "deploy to 
 The deployment script is going to be executed at least twice - for staging and for production. Regarding this, my recommendations are:
 
 - Write a single script for staging and production deployment.
-- Pass a parameter with the name of environment - "stage" or "prod" (or no value for production), because, probably, you may have to manage naming of things (services, deployment folders) by including "stage" suffix or, more universal, any provided environment name as a suffix.
-- Pass everything about configuration (database connection strings, API keys e.t.c.) using environment variables. It's easy to do from CI / CD tool.
+- Pass a parameter with the name of environment - "stage" or no value for production, because you may have to manage naming of things (services, deployment folders) depending on environment.
+- Pass everything about configuration (database connection strings, API keys e.t.c.) using environment variables.
 
 So, basically, your PowerShell script is going to be executed like:
 
