@@ -32,6 +32,8 @@ If you need to use some library code remotely you don't have to copy these libra
 
 # How to arrange a deployment?
 
+## General things
+
 You manage high-level steps like "build", "test", "deploy to stage", "deploy to prod" at the level of CI / CD pipeline and low-level steps of deployment process like "shutdown service", "delete service", "unpack software", "create service", "start service" at the level of a PowerShell deployment script.
 
 The deployment script is going to be executed at least twice - for staging and for production. Regarding this, my recommendations are:
@@ -166,15 +168,231 @@ I invoke PowerShell script (see `sh "pwsh -File ..."`) inside of `withCredential
 
 I put `helpers.psm1` in a directory (`./tools/` in my case) with scripts.
 
-Script for Linux deployment usually looks like:
+## Linux service example
+
+For sake of realism in our example, lets assume that:
+
+- The source code for Linux service is located at `./src/LinuxServiceName` (from root of the repository).
+- The artifacts are built (earlier in pipeline) to `./artifacts` folder and `LinuxServiceName` located there is the folder we are going to deploy as a systemd service at the target Linux box.
+- The service is written with .NET Core and have to be run with `/usr/bin/dotnet .../LinuxServiceName.dll` command. The required version of a shared framework is passed through DOTNET_RUNTIME environment variable.
+- The target Linux machine name is passed through DEPLOY_HOSTNAME environment variable.
+- The parameters related to RabbitMQ and database connection, that are passed through environment variables, should be added to `appsettings.json` which is the configuration file for deployed service that have to be placed in its folder. Also, there are `appsettings.Production.json` in the source code folder which we want to merge into that `appsetting.json`.
+- In the SQL_CONNECTION_TEMPLATE there are placeholders `##USR##` and `##PSW##` that have to be substituted with username and password (passed from Jenkins Credentials using other variables).
+- We are going to deploy a systemd service that listens to some HTTP URL and have to open some TCP port using firewalld. So, lets get this through FIREWALLD_PORT and URL environment variables.
+
+Script for Linux deployment may look like:
+
+```powershell
+param (
+    [String]
+    $nonProdEnvName
+)
+
+$ErrorActionPreference = "Stop"
+$DebugPreference = "Continue"
+$ProgressPreference = "SilentlyContinue"
+
+# Import helpers
+Import-Module -Name $PSScriptRoot/helpers
+
+#
+# Basic setup
+#
+$prod = [String]::IsNullOrEmpty($nonProdEnvName)
+
+# vars related to local filesystem
+$srcLocalPath = "./src/LinuxServiceName"
+$binLocalPath = "./artifacts/LinuxServiceName"
+$tmpLocalPath = "./tmp/$($(New-Guid).Guid)"
+$zipName = if ($prod) { "LinuxServiceName.zip" } else { "LinuxServiceName-$nonProdEnvName.zip" }
+$zipLocalPath = "./artifacts/$zipName"
+
+# vars related to target machine filesystem, user, group, service
+$targetFolder = if ($prod) { "/usr/local/linux-service-name" } else { "/usr/local/linux-service-name-$nonProdEnvName" }
+$targetTempPath = "/tmp"
+$targetService = if ($prod) { "linux-service-name" } else { "linux-service-name-$nonProdEnvName" }
+$targetUser = $targetService
+$targetGroup = $targetUser
+$targetServiceBinPath = "/usr/bin/dotnet $targetFolder/LinuxServiceName.dll"
+$targetServiceDescription = "Linux Service Example"
+
+# some other vars
+$deployHostname = $Env:DEPLOY_HOSTNAME
+$dotnetRuntime = $Env:DOTNET_RUNTIME
+$firewalldPort = $Env:FIREWALLD_PORT
+
+# show the type of deployment
+Write-Output "Deploying to $(If ($prod) { "production" } else { "'$nonProdEnvName'" }) environment."
+
+#
+# Making a temp copy of the artefact
+#
+Write-Debug "Making a temporary copy of the artefact."
+If (Test-Path $tmpLocalPath) { Remove-Item $tmpLocalPath -Recurse -Force }
+Copy-Item -Path $binLocalPath -Destination $tmpLocalPath -Recurse -Exclude @('appsettings.Production.json','appsettings.Development.json')
+
+#
+# Transforming the configuration
+#
+Write-Debug "Transforming the configuration."
+
+# merge configs
+$config = Get-Content "$srcLocalPath\appsettings.json" -raw | ConvertFrom-Json
+$configProd = Get-Content "$srcLocalPath\appsettings.Production.json" -raw | ConvertFrom-Json
+Merge-Objects $config $configProd
+
+# configure RabbitMQ connection
+$config.RabbitMQ.Connection.Username = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:RABBITMQ_LOGIN_BASE64)).trim()
+$config.RabbitMQ.Connection.Password = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:RABBITMQ_PASSWD_BASE64)).trim()
+$config.RabbitMQ.Connection.Hostname = $Env:RABBITMQ_HOSTNAME
+$config.RabbitMQ.Connection.Vhost = $Env:RABBITMQ_VHOST
+
+# configure DB connection
+$conn = $Env:SQL_CONNECTION_TEMPLATE
+$conn = $conn.Replace("##USR##", [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:SQL_LOGIN_BASE64)).trim())
+$conn = $conn.Replace("##PSW##", [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:SQL_PASSWD_BASE64)).trim())
+$config.Db.SQL.Connection = $conn
+
+# configure URL
+$config.Kestrel.EndPoints.Http.Url = $Env:URL
+
+# write config
+$config | ConvertTo-Json -depth 32 | Set-Content "$tmpLocalPath/appsettings.json"
+
+#
+# Packing the artefact
+#
+Write-Debug "Packing the artefact."
+Compress-Archive -Path "$tmpLocalPath/*" -DestinationPath $zipLocalPath -Force
+
+#
+# Configure SSH known_hosts
+#
+Update-KnownHosts $deployHostname
+
+#
+# Connect to the target machine
+#
+Write-Debug "Starting the remote session."
+$login = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:DEPLOY_LOGIN_BASE64)).Trim()
+$keyfile = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:DEPLOY_KEYFILE_BASE64)).Trim()
+$s = New-PSSession -HostName $deployHostname -UserName $login -KeyFilePath $keyfile
+
+#
+# Define utility functions in the remote session
+#
+Write-Debug "Exporting functions"
+Export-FunctionRemote -Session $s -FuncName "Invoke-SudoExpression"
+
+#
+# Check runtime
+#
+Write-Debug "Checking the dotnet runtime."
+Invoke-Command -Session $s -ArgumentList $dotnetRuntime -ScriptBlock ([ScriptBlock]::Create(${function:Confirm-DotnetRuntimeLinux}))
+
+#
+# Stop the existing service instance
+#
+Write-Debug "Stopping the service '$targetService' on the target machine (if running)."
+Invoke-Command -Session $s -ArgumentList $targetService, $targetServiceBinPath -ScriptBlock ([ScriptBlock]::Create(${function:Stop-ServiceInstanceLinux}))
+
+#
+# Remove the existing firewalld service
+#
+Write-Debug "Removing the firewalld service on the target machine."
+Invoke-Command -Session $s -ArgumentList $targetService -ScriptBlock ([ScriptBlock]::Create(${function:Unpublish-FirewalldServiceLinux}))
+Invoke-Command -Session $s -ArgumentList $targetService -ScriptBlock ([ScriptBlock]::Create(${function:Remove-FirewalldServiceLinux}))
+
+#
+# Remove the existing service instance
+#
+Write-Debug "Removing the service '$targetService' on the target machine (if exists)."
+Invoke-Command -Session $s -ArgumentList $targetService -ScriptBlock ([ScriptBlock]::Create(${function:Remove-ServiceInstanceLinux}))
+
+#
+# Check for the target folder and clean-up
+#
+$folder = Invoke-Command -Session $s { Get-Item -Path $using:targetFolder -ErrorAction SilentlyContinue -WarningAction SilentlyContinue }
+If (-Not $null -eq $folder) {
+    Write-Debug "Removing the folder '$targetFolder' on the target machine."
+    Invoke-SudoCommand -Session $s -Command "rm -rf ${targetFolder}"
+}
+
+#
+# Copy the packed artefact
+#
+Write-Debug "Copying zip to the target machine into '$targetTempPath'."
+Copy-Item -Path $zipLocalPath -Destination $targetTempPath -ToSession $s
+
+
+#
+# Unpack the artefact
+#
+Write-Debug "Unpacking to the target folder ('$targetFolder')."
+Invoke-SudoCommand -Session $s -Command "unzip ${targetTempPath}/${zipName} -d ${targetFolder}"
+
+#
+# Check for user or create it
+#
+try {
+    Write-Debug "Checking for user '$targetUser'."
+    Invoke-SudoCommand -Session $s -Command "id -u $targetUser" | Out-Null
+}
+catch {
+    Write-Debug "Creating the user '$targetUser' (with a group of the same name)."
+    Invoke-SudoCommand -Session $s -Command "useradd -r -s /sbin/nologin -c '$targetServiceDescription' -U -M $targetUser"
+}
+
+#
+# Make sure the folder is owned by the service user
+#
+Write-Debug "Altering the ownership and permissions to the target folder ('$targetFolder')."
+Invoke-SudoCommand -Session $s -Command "chown -R ${targetUser}:${targetGroup} ${targetFolder}"
+Invoke-SudoCommand -Session $s -Command "chmod -R 755 ${targetFolder}"    # rwxr-xr-x
+
+#
+# Create the service instance
+#
+Write-Debug "Creating the service '$targetService' on the target machine."
+Invoke-Command `
+    -Session $s `
+    -ArgumentList `
+        $targetUser, `
+        $targetGroup, `
+        $targetService, `
+        $targetServiceBinPath, `
+        $targetFolder, `
+        $targetServiceDescription `
+    -ScriptBlock ([ScriptBlock]::Create(${function:New-ServiceInstanceLinux}))
+
+#
+# Start the service instance
+#
+Write-Debug "Starting the service '$targetService' on the target machine."
+Invoke-Command -Session $s -ArgumentList $targetService, $targetServiceBinPath -ScriptBlock ([ScriptBlock]::Create(${function:Start-ServiceInstanceLinux}))
+
+#
+# Create a firewalld service
+#
+Write-Debug "Creating the firewalld service on the target machine."
+Invoke-Command -Session $s -ArgumentList $targetService, $firewalldPort, $targetServiceDescription -ScriptBlock ([ScriptBlock]::Create(${function:New-FirewalldServiceLinux}))
+Invoke-Command -Session $s -ArgumentList $targetService -ScriptBlock ([ScriptBlock]::Create(${function:Publish-FirewalldServiceLinux}))
+
+#
+# Tear down with the target machine
+#
+Write-Debug "Termination of the remote session."
+Remove-PSSession -Session $s
+```
+
+I didn't debug the code above, just sculpted it from existing projects. The benefit is that these scripts differ in the `Basic setup` and `Transforming the configuration` sections, other sections are added or removed out of necessity.
+
+## Windows service example
+
+Script for Windows deployment may look like:
 
 ```powershell
 
 ```
 
-Script for Windows deployment usually looks like:
-
-```powershell
-
-```
-
+I hope it helps you.
