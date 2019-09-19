@@ -333,7 +333,6 @@ If (-Not $null -eq $folder) {
 Write-Debug "Copying zip to the target machine into '$targetTempPath'."
 Copy-Item -Path $zipLocalPath -Destination $targetTempPath -ToSession $s
 
-
 #
 # Unpack the artefact
 #
@@ -591,6 +590,6 @@ I've left comment in the "Connect to the target machine" section with rationale 
 
 Sometime you have to add extra wait timeout when stopping or starting Windows services as 3rd argument to `Stop-ServiceInstanceWindows` and `Start-ServiceInstanceWindows`. It can be important.
 
-Most sections are slightly different from its Linux counterparts.
+Some of the sections are slightly different from its Linux counterparts. But, some code reused.
 
-You can find a lot of solutions for PowerShell, so you can easily customize the code from the examples above for your need. I just documented how I do it and grouped most of reusable functions in the module.
+You can find a lot of solutions for PowerShell, so you can easily customize the code from the examples above for your need. I just documented how I do it and grouped helpful functions in the module.
