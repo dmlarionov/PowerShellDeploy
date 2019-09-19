@@ -1,8 +1,6 @@
 # What is it?
 
-The `helpers.psm1` is a PowerShell Module supporting deployment of software services to Linux and Windows, orchestrated by a build system.
-
-I'm doing my CI + CD with Jenkins, utilizing PowerShell everywhere, and I collected my own reusable functions in this helpers module. You can use it as is or look for a code samples.
+The `helpers.psm1` is a PowerShell Module supporting deployment of software services to Linux and Windows, orchestrated by a build system. I'm doing my CI + CD with Jenkins, utilizing PowerShell everywhere, and I collected my own reusable functions in this helpers module.
 
 ## Features
 
@@ -22,26 +20,39 @@ I'm doing my CI + CD with Jenkins, utilizing PowerShell everywhere, and I collec
 
 # Why to use it?
 
-Probably, you may want to reuse some deployment code for both Linux and Windows target machines. Or may be you need PowerShell to:
+Yes, you may use Ansible, Chef and other tools designed for deploy. But, if you don't have time to learn advanced declarative tools and want to use scripted approach, welcome.
 
-- Keep execution control at a built agent machine (check conditions, run steps in order), having consistent context (function definitions and variables) on a target machine between steps.
-- Use a single session from begin to end (not connect to a target machine for each command batch).
+## Why PowerShell?
 
-Saying "check conditions, run steps in order" I mean low-level steps like "shutdown service", "delete service", "unpack software", "create service", "start service", not high-level steps which are CI / CD system controlled (build, test, deploy to stage, deploy to prod).
+First, it runs on Windows and Linux, so you can reuse some code.
 
-Yes, you may use Ansible, Chef and other tools designed for deploy. But, if for any reason you prefer to use your build agents for deployment or just like PowerShell, please, use this module.
+Second, it have a notion of remote session, which is used for a command execution at a remote machine. You can orchestrate steps at a master machine (agent machine of CI / CD system), executing commands in sessions to target machines. Each session keeps context, so you can reuse remotely declared functions and variables (lets say - remote state) from its inception till the termination.
 
-# How to use it?
+If you need to use some library code remotely you don't have to copy these libraries to remote machines, just run script blocks made of its functions or declare functions remotely. I'll show you how.
 
-Imagine you are deploying 2 services, one to Windows and another to Linux in staging and production environments. So, you have 4 boxes.
+# How to arrange a deployment?
 
-First, install PowerShell (Core) everywhere (4 target boxes + build agent) and add it on target boxes to `sshd_config`:
+You manage high-level steps like "build", "test", "deploy to stage", "deploy to prod" at the level of CI / CD pipeline and low-level steps of deployment process like "shutdown service", "delete service", "unpack software", "create service", "start service" at the level of a PowerShell deployment script.
+
+The deployment script is going to be executed at least twice - for staging and for production. Regarding this, my recommendations are:
+
+- Pass a parameter with the name of environment - "stage" or "prod" (or no value for production), because, probably, you may have to manage naming of things (services, deployment folders) by including "stage" suffix or, to be more universal, using environment name as a suffix.
+- Pass everything about configuration using environment variables. It's easy to configure in CI / CD tool.
+
+So, basically, your PowerShell script is going to be executed like:
+
+1. For stage deployment: `pwsh -File ./tools/deploy-script-name.ps1 stage`
+2. For production deployment: `pwsh -File ./tools/deploy-script-name.ps1`
+
+Now, lets look at the example. Imagine you are deploying 2 services, one to Windows and another to Linux in staging and production environments. So, you have 4 boxes. Plus, you have Jenkins on its own Linux box.
+
+First, install PowerShell Core everywhere (4 target boxes + Jenkins agent) and add it on target boxes to `sshd_config`:
 
 ```
 Subsystem       powershell /usr/bin/pwsh -sshs -NoLogo -NoProfile
 ```
 
-Basically, your `Jenkinsfile` looks like this:
+At high-level your `Jenkinsfile` looks like this:
 
 ```groovy
 pipeline {
@@ -111,9 +122,7 @@ pipeline {
 }
 ```
 
-Probably, you want to use 2 scripts (in example above) - one for deployment to a Linux boxes and another for deployment to Windows, because staging and productions boxes are similar.
-
-So, create scripts (`./tools/...ps1`) that control low-level deployment steps which take their configurations from environment variables and use it in Jenkins stages like:
+You have to create scripts (`./tools/...ps1`) that control low-level deployment steps which take their configurations through environment variables from `Jenkinsfile` this way:
 
 ```groovy
 stage('Linux service name') {
@@ -146,36 +155,15 @@ stage('Linux service name') {
 }
 ```
 
-Pattern for `Jenkinsfile`, shown above, demonstrates how to pass credentials to PowerShell. If you don't encode it somehow in PowerShell you'll get it as series of asterisks (`****`). So, you have to:
+Pattern shown above also demonstrates how to pass credentials to PowerShell. If you don't encode it somehow in PowerShell script you'll get it as series of asterisks (`****`). So, you have to:
 
 ```groovy
-env.X_BASE64 = sh(script: 'set +x && echo $X | base64', , returnStdout: true).trim()
+env.XXX_BASE64 = sh(script: 'set +x && echo $XXX | base64', , returnStdout: true).trim()
 ```
 
 I invoke PowerShell script (see `sh "pwsh -File ..."`) inside of `withCredentials` for SSH, because a file with a key wouldn't exists outside of it (Jenkins manages that).
 
 I put `helpers.psm1` in a directory (`./tools/` in my case) with scripts.
-
-I use single parameter for each script (which my way to write it) - a name for non-production environment. So, for production the stage definition would slightly differ:
-
-```groovy
-stage('Linux service name') {
-    options {
-        lock('linux-service-name-prod-deploy')
-    }
-    steps {
-        script {
-            ...
-            withCredentials(...) {
-                ...
-                sh "pwsh -File ./tools/deploy-linux-service-name.ps1"
-            }
-        }
-    }
-}
-```
-
-This was one of possible ways to configure stages and to invoke scripts, you can do it as you like. Now, lets look into PowerShell and how to use my helpers.
 
 Script for Linux deployment usually looks like:
 
