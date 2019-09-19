@@ -166,10 +166,10 @@ Pattern shown above also demonstrates how to pass credentials to PowerShell. If 
 env.SECRET_BASE64 = sh(script: 'set +x && echo $SECRET | base64', , returnStdout: true).trim()
 ```
 
-In PowerShell code I decode this way:
+In PowerShell code I decode it back this way:
 
 ```powershell
-$secret = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:SECRET_BASE64))
+$secret = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:SECRET_BASE64)).Trim()
 ```
 
 I invoke PowerShell script (see `sh "pwsh -File ..."`) inside of `withCredentials` for SSH, because a file with a key wouldn't exists outside of it (Jenkins manages that).
