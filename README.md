@@ -163,13 +163,13 @@ stage('Linux service name') {
 Pattern shown above also demonstrates how to pass credentials to PowerShell. If you don't encode it somehow then in PowerShell script you'll get it as series of asterisks (`****`). So, you have to:
 
 ```groovy
-env.XXX_BASE64 = sh(script: 'set +x && echo $XXX | base64', , returnStdout: true).trim()
+env.SECRET_BASE64 = sh(script: 'set +x && echo $SECRET | base64', , returnStdout: true).trim()
 ```
 
-In PowerShell code I decode using:
+In PowerShell code I decode this way:
 
 ```powershell
-[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:X_BASE64))
+$secret = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:SECRET_BASE64))
 ```
 
 I invoke PowerShell script (see `sh "pwsh -File ..."`) inside of `withCredentials` for SSH, because a file with a key wouldn't exists outside of it (Jenkins manages that).
