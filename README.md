@@ -1,6 +1,6 @@
 # What is it?
 
-The `helpers.psm1` is a PowerShell Module supporting deployment of software services to Linux and Windows, orchestrated by a build system. I'm doing my CI + CD with Jenkins, utilizing PowerShell everywhere, and I collected my own reusable functions in this helpers module.
+I'm doing my CI + CD with Jenkins, utilizing PowerShell everywhere, so, I collected my own reusable functions in the helpers module ([helpers.psm1](./helpers.psm1)) and practices just here in this README file.
 
 ## Features
 
