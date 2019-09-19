@@ -127,7 +127,7 @@ pipeline {
 }
 ```
 
-You have to create scripts (`./tools/...ps1`) that control low-level deployment steps which take their configurations through environment variables from `Jenkinsfile` this way:
+You have to create 2 scripts (one for Windows service, another for Linux service) that control low-level deployment steps which take their configurations through environment variables from `Jenkinsfile` this way:
 
 ```groovy
 stage('Linux service name') {
