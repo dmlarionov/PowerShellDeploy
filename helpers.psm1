@@ -870,7 +870,7 @@ Publishes a firewalld service to zone
         $ZoneName = 'public'
     )
     try {
-        Invoke-SudoExpression "firewall-cmd --permanent --zone=${ZoneName} --add-service=${ServiceName}"
+        Invoke-SudoExpression "bash -c '[[ -f /etc/firewalld/services/${ServiceName}.xml ]] && firewall-cmd --permanent --zone=${ZoneName} --add-service=${ServiceName}'"
         Invoke-SudoExpression "firewall-cmd --reload"
     }
     catch {
@@ -892,7 +892,7 @@ Unpublishes a firewalld service from zone
         $ZoneName = 'public'
     )
     try {
-        Invoke-SudoExpression "firewall-cmd --permanent --zone=${ZoneName} --remove-service=${ServiceName}"
+        Invoke-SudoExpression "bash -c '[[ -f /etc/firewalld/services/${ServiceName}.xml ]] && firewall-cmd --permanent --zone=${ZoneName} --remove-service=${ServiceName}'"
         Invoke-SudoExpression "firewall-cmd --reload"
     }
     catch {
