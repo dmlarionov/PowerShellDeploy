@@ -57,7 +57,7 @@ Subsystem       powershell /usr/bin/pwsh -sshs -NoLogo -NoProfile
 
 Make sure you can login with SSH keys from your Jenkins Credentials to the target machines.
 
-At high-level your `Jenkinsfile` looks like this:
+At the high level your `Jenkinsfile` can look like this:
 
 ```groovy
 pipeline {
